@@ -1,6 +1,6 @@
 import pandas as pd
 
-from data.hist_data import hist_data
+from brokers.angleone.hist_data import hist_data
 from feature_engineering.enrich_features import enrich_features
 
 
@@ -13,9 +13,9 @@ class HistoricalAgent:
 
     def get_symbols(self):
 
-        df = pd.read_csv("data/FNO_LST_190.csv")
+        df = pd.read_csv("data/nifty500.csv")
 
-        return df["Script"].tolist()
+        return df['Symbol'].dropna().unique().tolist()
 
     def get_market_data(
         self,
@@ -25,18 +25,25 @@ class HistoricalAgent:
         to_date
     ):
 
-        df = self.client.get_eq_data(
-            symbol,
-            symbol,
-            from_date,
-            to_date,
-            interval
-        )
+        try:
 
-        if df is None or len(df) == 0:
+            df = self.client.get_eq_data(
+                symbol,
+                symbol,
+                from_date,
+                to_date,
+                interval
+            )
+
+            if df is None or len(df) == 0:
+                return None
+
+            df = enrich_features(df)
+
+            return df
+
+        except Exception as e:
+
+            print(f"ERROR fetching {symbol}: {e}")
+
             return None
-
-        # FEATURE ENRICHMENT
-        df = enrich_features(df)
-
-        return df
