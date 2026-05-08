@@ -37,6 +37,36 @@
 
 
 
+# from typing import TypedDict, Annotated, Optional
+# from langgraph.graph.message import add_messages
+# from shared.models import StrategySignal
+
+
+# class TradingState(TypedDict):
+#     symbol:         str
+#     code:           str            # ← AngelOne token code e.g. "2885"
+#     interval:       str
+#     from_date:      Optional[str]
+#     to_date:        Optional[str]
+#     df:             Optional[object]
+#     signals:        list[StrategySignal]
+#     risk_approved:  bool
+#     final_decision: Optional[str]
+#     reasoning:      list[str]
+#     metadata:       dict
+#     messages:       Annotated[list, add_messages]
+
+
+
+
+
+
+
+
+
+
+
+
 from typing import TypedDict, Annotated, Optional
 from langgraph.graph.message import add_messages
 from shared.models import StrategySignal
@@ -44,11 +74,11 @@ from shared.models import StrategySignal
 
 class TradingState(TypedDict):
     symbol:         str
-    code:           str            # ← AngelOne token code e.g. "2885"
+    code:           str
     interval:       str
     from_date:      Optional[str]
     to_date:        Optional[str]
-    df:             Optional[object]
+    # df removed — stored in df_cache.py instead
     signals:        list[StrategySignal]
     risk_approved:  bool
     final_decision: Optional[str]

@@ -18,11 +18,13 @@
 
 
 
+import os
 from dotenv import load_dotenv
-load_dotenv()
-
 from orchestrator.graph import get_graph
 from agents.historical_agent import HistoricalAgent
+
+load_dotenv()
+os.environ["LANGGRAPH_ALLOWED_MSGPACK_MODULES"] = "shared.models.StrategySignal"
 
 def run():
     graph  = get_graph()
