@@ -1,3 +1,5 @@
+from shared.models import StrategySignal
+
 class BreakoutAgent:
 
     def evaluate(self, df, symbol):
@@ -20,10 +22,18 @@ class BreakoutAgent:
 
         if breakout and volume_confirmation and squeeze:
 
-            return {
-                "strategy": "breakout",
-                "signal": "BUY",
-                "confidence": 0.89
-            }
+            # return {
+            #     "strategy": "breakout",
+            #     "signal": "BUY",
+            #     "confidence": 0.89
+            # }
 
+            return StrategySignal(
+                strategy="Breakout",          # field is 'strategy', not 'strategy_name'
+                symbol=symbol,
+                signal="BUY",
+                confidence=0.89,
+                reasoning=["Price above 20-day high", "Volume surge", "BB squeeze"],
+                metadata={}
+            )
         return None

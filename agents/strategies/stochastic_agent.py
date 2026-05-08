@@ -1,3 +1,4 @@
+from shared.models import StrategySignal
 class StochasticAgent:
 
     def evaluate(self, df, symbol):
@@ -14,10 +15,18 @@ class StochasticAgent:
 
         if bullish_cross and oversold:
 
-            return {
-                "strategy": "stochastic",
-                "signal": "BUY",
-                "confidence": 0.74
-            }
+            # return {
+            #     "strategy": "stochastic",
+            #     "signal": "BUY",
+            #     "confidence": 0.74
+            # }
+            return StrategySignal(
+                strategy="stochastic",          # field is 'strategy', not 'strategy_name'
+                symbol=symbol,
+                signal="BUY",
+                confidence=0.89,
+                reasoning=["Price above 20-day high", "Volume surge", "BB squeeze"],
+                metadata={}
+            )
 
         return None
