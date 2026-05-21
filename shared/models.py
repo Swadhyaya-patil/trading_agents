@@ -1,16 +1,31 @@
-from dataclasses import dataclass
-from typing import List
+# from dataclasses import dataclass
+# from typing import List
 
 
-@dataclass
-class StrategySignal:
+# @dataclass
+# class StrategySignal:
 
-    strategy: str
-    symbol: str
+#     strategy: str
+#     symbol: str
 
-    signal: str
+#     signal: str
+#     confidence: float
+
+#     reasoning: List[str]
+
+#     metadata: dict
+
+
+
+
+from typing import List, Optional
+from pydantic import BaseModel
+
+
+class StrategySignal(BaseModel):
+    strategy:   str
+    symbol:     str
+    signal:     str                  # "BUY" | "SELL" | "HOLD"
     confidence: float
-
-    reasoning: List[str]
-
-    metadata: dict
+    reasoning:  List[str]
+    metadata:   dict = {}
