@@ -79,19 +79,64 @@ def get_chain(system_prompt: str, llm=None):
     return prompt | llm | JsonOutputParser()
 
 
+# def safe_invoke(chain, input_text: str, retries: int = 2) -> dict:
+#     """Invoke chain with retry. Returns empty dict on total failure."""
+#     last_error = None
+#     for attempt in range(retries):
+#         try:
+#             result = chain.invoke({"input": input_text})
+#             if isinstance(result, dict):
+#                 return result
+#             # parser returned a string — try parsing manually
+#             clean = str(result).strip().removeprefix("```json").removesuffix("```").strip()
+#             return json.loads(clean)
+#         except Exception as e:
+#             last_error = e
+#             if attempt < retries - 1:
+#                 print(f"  [llm] Retry {attempt + 1} after error: {e}")
+#     raise last_error
+
+
+
+# shared/llm.py — update safe_invoke
+
+import re
+import json
+
 def safe_invoke(chain, input_text: str, retries: int = 2) -> dict:
-    """Invoke chain with retry. Returns empty dict on total failure."""
     last_error = None
     for attempt in range(retries):
         try:
             result = chain.invoke({"input": input_text})
+
             if isinstance(result, dict):
                 return result
-            # parser returned a string — try parsing manually
-            clean = str(result).strip().removeprefix("```json").removesuffix("```").strip()
-            return json.loads(clean)
+
+            # Convert to string for manual parsing
+            content = str(result).strip()
+
+            # Strip <think>...</think> blocks (DeepSeek/QwQ reasoning models)
+            content = re.sub(r"<think>.*?</think>", "", content,
+                             flags=re.DOTALL).strip()
+
+            # Strip markdown fences
+            content = re.sub(r"```json|```", "", content).strip()
+
+            # Empty after stripping
+            if not content:
+                raise ValueError("Empty response after stripping think blocks")
+
+            # Try to extract JSON object if surrounded by other text
+            # Find first { and last } 
+            start = content.find("{")
+            end   = content.rfind("}") + 1
+            if start != -1 and end > start:
+                content = content[start:end]
+
+            return json.loads(content)
+
         except Exception as e:
             last_error = e
             if attempt < retries - 1:
-                print(f"  [llm] Retry {attempt + 1} after error: {e}")
+                print(f"  [llm] Retry {attempt+1} after error: {str(e)[:120]}")
     raise last_error

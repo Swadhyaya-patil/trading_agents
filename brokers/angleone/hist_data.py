@@ -437,8 +437,29 @@ class hist_data:
         )
         return response["data"]["fetched"][0]["opnInterest"]
 
-    # ── Order placement ────────────────────────────────────────────────
-    def place_limit_order(self, ticker, buy_sell, price, quantity, exchange="NSE"):
+    # # ── Order placement ────────────────────────────────────────────────
+    # def place_limit_order(self, ticker, buy_sell, price, quantity, exchange="NSE"):
+    #     params = {
+    #         "variety":         "NORMAL",
+    #         "tradingsymbol":   f"{ticker}-EQ",
+    #         "symboltoken":     self.token_lookup(ticker),
+    #         "transactiontype": buy_sell,
+    #         "exchange":        exchange,
+    #         "ordertype":       "LIMIT",
+    #         "producttype":     "INTRADAY",
+    #         "duration":        "DAY",
+    #         "price":           price,
+    #         "quantity":        quantity,
+    #     }
+    #     return self.angel_obj.placeOrder(params)
+
+
+    # brokers/angleone/hist_data.py
+# Replace the existing place_limit_order method with this:
+
+    def place_limit_order(self, ticker, buy_sell, price,
+                        quantity, exchange="NSE",
+                        product_type="DELIVERY"):   # ← was hardcoded INTRADAY
         params = {
             "variety":         "NORMAL",
             "tradingsymbol":   f"{ticker}-EQ",
@@ -446,7 +467,7 @@ class hist_data:
             "transactiontype": buy_sell,
             "exchange":        exchange,
             "ordertype":       "LIMIT",
-            "producttype":     "INTRADAY",
+            "producttype":     product_type,   # ← now configurable
             "duration":        "DAY",
             "price":           price,
             "quantity":        quantity,

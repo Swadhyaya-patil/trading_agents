@@ -206,21 +206,35 @@ from shared.models import StrategySignal
 from shared.llm import get_chain, safe_invoke
 
 # NO curly-brace placeholders except {{ }} for the JSON example
-TRADE_LLM_PROMPT = """
-You are a quantitative trading analyst for Indian NSE equity markets.
-You will receive recent daily OHLCV and indicator data for a stock.
-Analyze trend (EMAs), momentum (RSI, Stoch), MACD, volatility (ATR, BB), and volume (Vol_Ratio).
-Decide if a trade should be taken tomorrow.
+# TRADE_LLM_PROMPT = """
+# You are a quantitative trading analyst for Indian NSE equity markets.
+# You will receive recent daily OHLCV and indicator data for a stock.
+# Analyze trend (EMAs), momentum (RSI, Stoch), MACD, volatility (ATR, BB), and volume (Vol_Ratio).
+# Decide if a trade should be taken tomorrow.
 
-Respond ONLY with valid JSON — no markdown, no text outside JSON:
-{{
-  "decision": "BUY" or "SELL" or "NO_TRADE",
-  "confidence": 0-100,
-  "trend": "brief text",
-  "momentum": "brief text",
-  "final_reason": "1 sentence"
-}}
-"""
+# Respond ONLY with valid JSON — no markdown, no text outside JSON:
+# {{
+#   "decision": "BUY" or "SELL" or "NO_TRADE",
+#   "confidence": 0-100,
+#   "trend": "brief text",
+#   "momentum": "brief text",
+#   "final_reason": "1 sentence"
+# }}
+# """
+
+
+
+
+
+
+# agents/trade_llm_agent.py — replace TRADE_LLM_PROMPT
+
+TRADE_LLM_PROMPT = """You are a JSON-only trading analysis API.
+You ONLY output a single JSON object. No explanations, no markdown, no text.
+If you write anything other than a JSON object, you have failed.
+
+Analyze the market data and output ONLY this JSON:
+{{"decision": "BUY", "confidence": 75, "trend": "brief", "momentum": "brief", "final_reason": "1 sentence"}}"""
 
 _trade_llm_chain = None
 
