@@ -291,7 +291,7 @@ def get_todays_signals() -> pd.DataFrame:
         try:
             return pd.read_sql("""
                 SELECT symbol, final_decision, avg_confidence,
-                       supervisor_conf, suggested_entry, timeframe, reasoning
+                       supervisor_conf, suggested_entry, timeframe, reasoning, signal_price
                 FROM signals
                 WHERE date(run_date) = ?
                 AND final_decision IN ('BUY', 'SELL')
@@ -548,6 +548,7 @@ def place_orders(client, executor):
         decision = row["final_decision"]
         conf     = safe_float(
             row.get("supervisor_conf") or row.get("avg_confidence"), 0.0)
+        signal_price  = safe_float(row.get("signal_price"), 0.0)
  
         # Confidence filter
         if conf < MIN_CONFIDENCE:
@@ -587,11 +588,14 @@ def place_orders(client, executor):
             log(f"  x {symbol}: LTP failed — {e}")
             continue
  
+        
         # FIX 1: calc qty using remaining capital, not just total
+        # ── Use signal_price as entry basis, fall back to LTP if missing
+        price_basis = signal_price if signal_price > 0 else ltp
         qty     = calc_quantity(ltp, remaining_capital)      # use LTP not offset price
-        e_price = entry_price(ltp, decision)                 # FIX 2: tick-rounded
-        sl      = calc_sl(e_price, decision)                 # FIX 2: tick-rounded
-        target  = calc_target(e_price, decision)             # FIX 2: tick-rounded
+        e_price = entry_price(price_basis, decision)
+        sl      = calc_sl(e_price, decision)
+        target  = calc_target(e_price, decision)
         capital = round(e_price * qty, 2)
  
         # FIX 1: final capital check
@@ -604,22 +608,50 @@ def place_orders(client, executor):
                 skipped += 1
                 continue
  
-        log(f"\n  -> {symbol}: {decision}")
-        log(f"     Confidence : {conf:.2f}")
-        log(f"     LTP        : Rs{ltp:.2f}")
-        log(f"     Entry      : Rs{e_price:.2f} ({ENTRY_OFFSET_PCT:+.1f}% offset, "
-            f"tick-rounded)")
-        log(f"     SL         : Rs{sl:.2f} ({MAX_RISK_PCT*100:.1f}%, tick-rounded)")
-        log(f"     Target     : Rs{target:.2f} ({MAX_RISK_PCT*RR_RATIO*100:.1f}%)")
-        log(f"     Qty        : {qty} shares @ Rs{capital:,.0f}")
-        log(f"     Timeframe  : {row.get('timeframe', 'N/A')}")
-        log(f"     Entry type : {row.get('suggested_entry', 'N/A')}")
- 
-        result = executor.execute(
-            symbol=symbol, signal=decision,
-            close_price=e_price, lot_size=qty, sl_pct=MAX_RISK_PCT,
-        )
- 
+    # ── Gap analysis
+            if decision == "BUY":
+                gap_pct = (ltp - price_basis) / price_basis * 100
+                if ltp > e_price:
+                    gap_action = f"LIMIT order at Rs{e_price:.2f} — waiting for pullback"
+                else:
+                    gap_action = f"LTP below entry — execute immediately"
+            else:
+                gap_pct = (price_basis - ltp) / price_basis * 100
+                if ltp < e_price:
+                    gap_action = f"LIMIT order at Rs{e_price:.2f} — waiting for bounce"
+                else:
+                    gap_action = f"LTP above entry — execute immediately"
+
+            qty     = calc_quantity(price_basis, remaining_capital)
+            capital = round(e_price * qty, 2)
+
+            log(f"\n  -> {symbol}: {decision}")
+            log(f"     Signal price : Rs{price_basis:.2f} (EOD close)")
+            log(f"     Current LTP  : Rs{ltp:.2f} "
+                f"({'gap up' if decision=='BUY' and ltp>price_basis else 'gap down' if decision=='BUY' else ''})"
+                f" ({gap_pct:+.1f}%)")
+            log(f"     Entry        : Rs{e_price:.2f} ({ENTRY_OFFSET_PCT:+.2f}% of signal price)")
+            log(f"     Action       : {gap_action}")
+            log(f"     SL           : Rs{sl:.2f} ({MAX_RISK_PCT*100:.1f}%)")
+            log(f"     Target       : Rs{target:.2f} ({MAX_RISK_PCT*RR_RATIO*100:.1f}%)")
+            log(f"     Qty          : {qty} shares @ Rs{capital:,.0f}")
+
+            # ── Skip if gap is too large — price moved too far from signal
+            MAX_GAP_PCT = float(os.getenv("MAX_GAP_PCT", "2.0"))
+            if abs(gap_pct) > MAX_GAP_PCT:
+                log(f"     SKIP {symbol}: gap {gap_pct:+.1f}% exceeds "
+                    f"MAX_GAP_PCT {MAX_GAP_PCT:.1f}% — signal stale")
+                skipped += 1
+                continue
+
+            result = executor.execute(
+                symbol      = symbol,
+                signal      = decision,
+                close_price = e_price,      # ← limit order AT signal-based price
+                lot_size    = qty,
+                sl_pct      = MAX_RISK_PCT,
+            )
+            
         # FIX 3: only save and count if order actually went through
         if result["status"] == "CAUTIONARY":
             skipped += 1

@@ -2,6 +2,7 @@ import sqlite3
 import csv
 import os
 from datetime import datetime
+from orchestrator import df_cache
 from shared.models import StrategySignal
 
 
@@ -13,6 +14,7 @@ def _init_db(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS signals (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            signal_price    REAL,
             run_date        TEXT,
             symbol          TEXT,
             final_decision  TEXT,
@@ -42,10 +44,17 @@ def log_signal(state: dict):
     reasoning_text  = " | ".join(state.get("reasoning", []))
     run_date        = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    # ── Capture EOD close price at signal time
+    df      = df_cache.retrieve(state.get("symbol", ""))
+    signal_price = None
+    if df is not None and len(df) > 0:
+        signal_price = float(df["Close"].iloc[-1])
+
     row = {
         "run_date":         run_date,
         "symbol":           state.get("symbol", ""),
         "final_decision":   state.get("final_decision", "HOLD"),
+        "signal_price":     signal_price,        # ← ADD THIS
         "strategies_fired": ", ".join(strategy_names),
         "avg_confidence":   avg_conf,
         "risk_approved":    int(state.get("risk_approved", False)),
