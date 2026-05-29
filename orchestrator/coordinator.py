@@ -1,105 +1,39 @@
-# class TradingCoordinator:
-
-#     def __init__(
-#         self,
-#         historical_agent,
-#         strategy_agents
-#     ):
-
-#         self.historical_agent = historical_agent
-#         self.strategy_agents = strategy_agents
-
-#     def run(self):
-
-#         symbols = self.historical_agent.get_symbols()
-
-#         print(f"Total Symbols: {len(symbols)}")
-
-#         for symbol in symbols:
-
-#             print(f"Processing: {symbol}")
-
-#             df = self.historical_agent.get_market_data(
-#                 symbol=symbol,
-#                 interval='ONE_DAY',
-#                 from_date='2024-01-01',
-#                 to_date='2026-01-01'
-#             )
-
-#             if df is None:
-#                 continue
-
-#             for strategy in self.strategy_agents:
-
-#                 try:
-
-#                     signal = strategy.evaluate(df, symbol)
-
-#                     if signal:
-
-#                         print('\n--------------------------------')
-#                         print(f"Strategy: {signal.strategy}")
-#                         print(f"Symbol: {signal.symbol}")
-#                         print(f"Signal: {signal.signal}")
-#                         print(f"Confidence: {signal.confidence}")
-#                         print(f"Reasoning: {signal.reasoning}")
-#                         print('--------------------------------\n')
-
-#                 except Exception as e:
-
-#                     print(f"ERROR Strategy {symbol}: {e}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 from orchestrator.graph import get_graph
-from agents.historical_agent import HistoricalAgent
+from orchestrator.nodes import _historical_agent   # singleton — already logged in
 from datetime import date
 
-def run():
-    graph = get_graph()
-    agent = HistoricalAgent()
-    symbols = agent.get_symbols()[:10]   # start with 10 to test
 
-    for symbol in symbols:
-        print(f"\nRunning: {symbol}")
+def run():
+    graph   = get_graph()
+    symbols = _historical_agent.get_symbols()
+
+    print(f"Scanning {len(symbols)} FNO symbols...\n")
+
+    for row in symbols:
+        script = row["Script"]
+        code   = row["Code"]
+        print(f"→ {script} (code={code})")
 
         initial_state = {
-            "symbol": symbol,
-            "interval": "ONE_DAY",
-            "from_date": "2024-01-01",
-            "to_date": str(date.today()),
-            "df": None,
-            "signals": [],
-            "risk_approved": False,
+            "symbol":         script,
+            "code":           code,
+            "interval":       "ONE_DAY",
+            "from_date":      None,
+            "to_date":        str(date.today()),
+            "signals":        [],
+            "risk_approved":  False,
             "final_decision": None,
-            "reasoning": [],
-            "messages": [],
+            "reasoning":      [],
+            "messages":       [],
+            "metadata":       {},
         }
 
-        config = {"configurable": {"thread_id": symbol}}
+        config = {"configurable": {"thread_id": script}}
 
-        # Run up to the interrupt (before executor)
         for event in graph.stream(initial_state, config=config):
             node_name = list(event.keys())[0]
             print(f"  ✓ {node_name}")
 
-        # Peek at the paused state
         snapshot = graph.get_state(config)
         decision = snapshot.values.get("final_decision")
 
@@ -107,10 +41,14 @@ def run():
             print(f"  → Decision: BUY — approve? (y/n): ", end="")
             ans = input().strip().lower()
             if ans == "y":
-                # Resume past the interrupt
                 graph.invoke(None, config=config)
             else:
                 print("  → Skipped by user")
+        else:
+            print(f"  → HOLD")
+
+        print()
+
 
 if __name__ == "__main__":
     run()

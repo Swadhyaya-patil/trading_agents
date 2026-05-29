@@ -1,75 +1,5 @@
-# from typing import TypedDict, Annotated, Optional
-# from langgraph.graph.message import add_messages
-# from shared.models import StrategySignal
-
-# class TradingState(TypedDict):
-#     symbol: str
-#     interval: str
-#     from_date: str
-#     to_date: str
-#     df: Optional[object]            # enriched DataFrame
-#     signals: list[StrategySignal]   # collected from all strategy agents
-#     risk_approved: bool             # set by risk manager
-#     final_decision: Optional[str]   # BUY / SELL / HOLD
-#     reasoning: list[str]            # audit trail
-#     messages: Annotated[list, add_messages]   # LLM message history
-
-
-
-
-# from typing import TypedDict, Annotated, Optional
-# from langgraph.graph.message import add_messages
-# from shared.models import StrategySignal
-
-# class TradingState(TypedDict):
-#     symbol: str
-#     interval: str
-#     from_date: str
-#     to_date: str
-#     df: Optional[object]
-#     signals: list[StrategySignal]
-#     risk_approved: bool
-#     final_decision: Optional[str]
-#     reasoning: list[str]
-#     metadata: dict              # ← add this
-#     messages: Annotated[list, add_messages]
-
-
-
-
-# from typing import TypedDict, Annotated, Optional
-# from langgraph.graph.message import add_messages
-# from shared.models import StrategySignal
-
-
-# class TradingState(TypedDict):
-#     symbol:         str
-#     code:           str            # ← AngelOne token code e.g. "2885"
-#     interval:       str
-#     from_date:      Optional[str]
-#     to_date:        Optional[str]
-#     df:             Optional[object]
-#     signals:        list[StrategySignal]
-#     risk_approved:  bool
-#     final_decision: Optional[str]
-#     reasoning:      list[str]
-#     metadata:       dict
-#     messages:       Annotated[list, add_messages]
-
-
-
-
-
-
-
-
-
-
-
-
 from typing import TypedDict, Annotated, Optional
 from langgraph.graph.message import add_messages
-from shared.models import StrategySignal
 
 
 class TradingState(TypedDict):
@@ -78,8 +8,12 @@ class TradingState(TypedDict):
     interval:       str
     from_date:      Optional[str]
     to_date:        Optional[str]
-    # df removed — stored in df_cache.py instead
-    signals:        list[StrategySignal]
+    # df removed — stored in df_cache.py, never in LangGraph state
+    # signals stored as list[dict] not list[StrategySignal] so msgpack
+    # can serialize them cleanly through MemorySaver checkpoints.
+    # Every strategy already returns StrategySignal(BaseModel) — we call
+    # .model_dump() before storing here, and rebuild in risk/supervisor.
+    signals:        list[dict]
     risk_approved:  bool
     final_decision: Optional[str]
     reasoning:      list[str]

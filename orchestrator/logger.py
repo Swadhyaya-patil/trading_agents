@@ -13,21 +13,21 @@ CSV_PATH = "data/signals.csv"
 def _init_db(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS signals (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            signal_price    REAL,
-            run_date        TEXT,
-            symbol          TEXT,
-            final_decision  TEXT,
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_date         TEXT,
+            symbol           TEXT,
+            final_decision   TEXT,
+            signal_price     REAL,
             strategies_fired TEXT,
-            avg_confidence  REAL,
-            risk_approved   INTEGER,
-            supervisor_conf REAL,
-            suggested_entry TEXT,
-            timeframe       TEXT,
+            avg_confidence   REAL,
+            risk_approved    INTEGER,
+            supervisor_conf  REAL,
+            suggested_entry  TEXT,
+            timeframe        TEXT,
             max_position_pct REAL,
-            reasoning       TEXT,
-            momentum_fired  INTEGER,
-            breakout_fired  INTEGER,
+            reasoning        TEXT,
+            momentum_fired   INTEGER,
+            breakout_fired   INTEGER,
             stochastic_fired INTEGER
         )
     """)
@@ -36,25 +36,25 @@ def _init_db(conn):
 
 def log_signal(state: dict):
     """Call this at the end of each symbol's graph run."""
-    signals: list[StrategySignal] = state.get("signals", [])
-    meta    = state.get("metadata", {})
+    # signals are stored as list[dict] in state — rebuild for attribute access
+    raw_signals = state.get("signals", [])
+    signals     = [StrategySignal(**d) if isinstance(d, dict) else d for d in raw_signals]
+    meta        = state.get("metadata", {})
 
-    strategy_names  = [s.strategy for s in signals]
-    avg_conf        = round(sum(s.confidence for s in signals) / len(signals), 3) if signals else 0.0
-    reasoning_text  = " | ".join(state.get("reasoning", []))
-    run_date        = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    strategy_names = [s.strategy for s in signals]
+    avg_conf       = round(sum(s.confidence for s in signals) / len(signals), 3) if signals else 0.0
+    reasoning_text = " | ".join(state.get("reasoning", []))
+    run_date       = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # ── Capture EOD close price at signal time
-    df      = df_cache.retrieve(state.get("symbol", ""))
-    signal_price = None
-    if df is not None and len(df) > 0:
-        signal_price = float(df["Close"].iloc[-1])
+    # Capture close price at signal time
+    df           = df_cache.retrieve(state.get("symbol", ""))
+    signal_price = float(df["Close"].iloc[-1]) if df is not None and len(df) > 0 else None
 
     row = {
         "run_date":         run_date,
         "symbol":           state.get("symbol", ""),
         "final_decision":   state.get("final_decision", "HOLD"),
-        "signal_price":     signal_price,        # ← ADD THIS
+        "signal_price":     signal_price,
         "strategies_fired": ", ".join(strategy_names),
         "avg_confidence":   avg_conf,
         "risk_approved":    int(state.get("risk_approved", False)),
@@ -68,26 +68,27 @@ def log_signal(state: dict):
         "stochastic_fired": int("Stochastic" in strategy_names),
     }
 
-    # ── SQLite
     os.makedirs("data", exist_ok=True)
+
     with sqlite3.connect(DB_PATH) as conn:
         _init_db(conn)
         conn.execute("""
             INSERT INTO signals (
-                run_date, symbol, final_decision, strategies_fired,
-                avg_confidence, risk_approved, supervisor_conf,
-                suggested_entry, timeframe, max_position_pct, reasoning,
+                run_date, symbol, final_decision, signal_price,
+                strategies_fired, avg_confidence, risk_approved,
+                supervisor_conf, suggested_entry, timeframe,
+                max_position_pct, reasoning,
                 momentum_fired, breakout_fired, stochastic_fired
             ) VALUES (
-                :run_date, :symbol, :final_decision, :strategies_fired,
-                :avg_confidence, :risk_approved, :supervisor_conf,
-                :suggested_entry, :timeframe, :max_position_pct, :reasoning,
+                :run_date, :symbol, :final_decision, :signal_price,
+                :strategies_fired, :avg_confidence, :risk_approved,
+                :supervisor_conf, :suggested_entry, :timeframe,
+                :max_position_pct, :reasoning,
                 :momentum_fired, :breakout_fired, :stochastic_fired
             )
         """, row)
 
-    # ── CSV  (append mode — one file per day)
-    csv_path = CSV_PATH.replace(".csv", f"_{datetime.now().strftime('%Y%m%d')}.csv")
+    csv_path     = CSV_PATH.replace(".csv", f"_{datetime.now().strftime('%Y%m%d')}.csv")
     write_header = not os.path.exists(csv_path)
     with open(csv_path, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=row.keys())
@@ -96,9 +97,7 @@ def log_signal(state: dict):
         writer.writerow(row)
 
 
-
 def log_order(symbol: str, decision: str, order: dict):
-    """Log executed order details to SQLite."""
     os.makedirs("data", exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("""
