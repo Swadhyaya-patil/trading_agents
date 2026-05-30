@@ -62,7 +62,7 @@ class OIAgent(BaseStrategy):
     # ── One-time bhav download ─────────────────────────────────────────────
     def _ensure_bhav_downloaded(self):
         today = datetime.now().strftime("%Y%m%d")
-        today = "20260527"
+        # today = "20260527"
         if OIAgent._oi_date == today and OIAgent._oi_df is not None:
             return   # already downloaded today
 

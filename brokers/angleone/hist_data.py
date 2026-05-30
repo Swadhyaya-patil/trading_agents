@@ -176,3 +176,28 @@ class hist_data:
             "quantity":        quantity,
         }
         return self.angel_obj.placeOrder(params)
+
+    def place_stoploss_order(
+            self,
+            ticker,
+            buy_sell,
+            trigger_price,
+            quantity,
+            exchange="NSE",
+            product_type="DELIVERY"
+    ):
+        params = {
+            "variety": "STOPLOSS",
+            "tradingsymbol": f"{ticker}-EQ",
+            "symboltoken": self.token_lookup(ticker),
+            "transactiontype": buy_sell,
+            "exchange": exchange,
+            "ordertype": "STOPLOSS_LIMIT",
+            "producttype": product_type,
+            "duration": "DAY",
+            "price": trigger_price,
+            "triggerprice": trigger_price,
+            "quantity": quantity,
+        }
+
+        return self.angel_obj.placeOrder(params)
