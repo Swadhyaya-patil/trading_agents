@@ -18,15 +18,26 @@
 
 
 
-# check_orders.py
-import sqlite3, pandas as pd
+# # check_orders.py
+# import sqlite3, pandas as pd
 
-conn = sqlite3.connect("data/signals.db")
-df   = pd.read_sql("""
-    SELECT timestamp, symbol, decision, price, stop_loss,
-           quantity, order_id, status
-    FROM   orders
-    WHERE  date(timestamp) = date('now')
-    ORDER  BY timestamp DESC
-""", conn)
-print(df.to_string(index=False))
+# conn = sqlite3.connect("data/signals.db")
+# df   = pd.read_sql("""
+#     SELECT timestamp, symbol, decision, price, stop_loss,
+#            quantity, order_id, status
+#     FROM   orders
+#     WHERE  date(timestamp) = date('now')
+#     ORDER  BY timestamp DESC
+# """, conn)
+# print(df.to_string(index=False))
+
+
+
+
+
+
+
+import tensorflow as tf
+
+print("TensorFlow:", tf.__version__)
+print("GPUs:", tf.config.list_physical_devices('GPU'))

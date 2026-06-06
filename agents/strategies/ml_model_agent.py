@@ -168,7 +168,7 @@ from feature_engineering.chart_snapshot import save_trade_snapshot_V3
 class MLModelAgent(BaseStrategy):
 
     SEQ_LEN   = 51
-    THRESHOLD = 0.9995
+    THRESHOLD = 0.9993
 
     MLP_FEATURES = [
         'Price_EMA_21_Ratio', 'Price_EMA_51_Ratio', 'EMA_21_minus_EMA_51',
@@ -289,6 +289,8 @@ class MLModelAgent(BaseStrategy):
 
         if prob < self.THRESHOLD:
             return None
+        
+        print (f"  [MLModelAgent] Signal generated for {symbol} with probability {prob:.4f} ")
 
         return StrategySignal(
             strategy="MLModel",
