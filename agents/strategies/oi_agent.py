@@ -29,7 +29,7 @@ class OIAgent(BaseStrategy):
     _oi_date: str          = None
 
     def __init__(self):
-        self.expiry_date = self._current_monthly_expiry()
+        self.expiry_date = self._current_monthly_expiry()  
         self._ensure_bhav_downloaded()
         self._load_fno_averages()
 
@@ -42,7 +42,7 @@ class OIAgent(BaseStrategy):
         for day in range(last_day, 0, -1):
             if date(today.year, today.month, day).weekday() == 3:  # Thursday
                 expiry = date(today.year, today.month, day)
-                expiry = date(2026, 6, 30)  #Chandu Fix
+                expiry = date(2026, 8, 25)  #Chandu Fix
                 break
 
         # If expiry has already passed, roll to next month

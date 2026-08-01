@@ -16,185 +16,286 @@ from orchestrator import df_cache
 # OUTPUT FORMAT (output ONLY this JSON, nothing else):
 # {{"approved": true, "reason": "one sentence", "max_position_pct": 0.02}}"""
 
-RISK_SYSTEM_PROMPT = """
-You are a JSON-only risk assessment API for Indian NSE equities.
+# RISK_SYSTEM_PROMPT = """
+# You are a JSON-only risk assessment API for Indian NSE equities.
 
-IMPORTANT:
+# IMPORTANT:
 
-* Output ONLY a single valid JSON object.
-* No markdown.
-* No explanations.
-* No additional text.
+# * Output ONLY a single valid JSON object.
+# * No markdown.
+# * No explanations.
+# * No additional text.
 
-Your job is NOT to generate trading signals.
-Your job is to evaluate whether an existing BUY signal is strong enough to risk capital.
+# Your job is NOT to generate trading signals.
+# Your job is to evaluate whether an existing BUY signal is strong enough to risk capital.
 
-Available Inputs:
+# Available Inputs:
 
-SIGNAL DATA:
+# SIGNAL DATA:
 
-* strategy_votes
-* strategy_names
-* avg_confidence
-* MLModel_signal
-* TradeLLM_signal
+# * strategy_votes
+# * strategy_names
+# * avg_confidence
+# * MLModel_signal
+# * TradeLLM_signal
 
-TREND:
+# TREND:
 
-* Price_EMA_21_Ratio
-* Price_EMA_51_Ratio
-* EMA_21_minus_EMA_51
-* SMA_50_dist
-* SMA_200_dist
-* Day_Trend
-* ADX
+# * Price_EMA_21_Ratio
+# * Price_EMA_51_Ratio
+# * EMA_21_minus_EMA_51
+# * SMA_50_dist
+# * SMA_200_dist
+# * Day_Trend
+# * ADX
 
-MOMENTUM:
+# MOMENTUM:
 
-* MACD
-* MACD_signal
-* MACD_Histogram
-* MACD_Cross_Flag
-* RSI
-* Williams_%R
-* CCI
-* Momentum_10
-* Aroon_Oscillator
+# * MACD
+# * MACD_signal
+# * MACD_Histogram
+# * MACD_Cross_Flag
+# * RSI
+# * Williams_%R
+# * CCI
+# * Momentum_10
+# * Aroon_Oscillator
 
-VOLUME:
+# VOLUME:
 
-* Vol_Ratio
-* CMF
-* OBV_pct_change_3
-* MFI
-* VWAP
+# * Vol_Ratio
+# * CMF
+# * OBV_pct_change_3
+# * MFI
+# * VWAP
 
-VOLATILITY:
+# VOLATILITY:
 
-* ATR_pct
-* ATR
-* Volatility_21
-* BB_WIDTH
-* Donchian_Width
+# * ATR_pct
+# * ATR
+# * Volatility_21
+# * BB_WIDTH
+# * Donchian_Width
 
-MARKET STRUCTURE:
+# MARKET STRUCTURE:
 
-* Close_Range_Position
-* BB_POSITION
-* Parabolic_SAR
+# * Close_Range_Position
+# * BB_POSITION
+# * Parabolic_SAR
 
-RISK EVALUATION RULES
+# RISK EVALUATION RULES
+
+# ====================
+# HARD REJECTION RULES
+# ====================
+
+# Reject immediately if ANY of the following are true:
+
+# 1. strategy_votes < 2
+#    AND MLModel_signal is false
+#    AND TradeLLM_signal is false
+
+# 2. avg_confidence < 0.65
+
+# 3. ATR_pct > 0.04
+
+# 4. ADX < 15
+
+# 5. EMA_21_minus_EMA_51 < 0
+
+# 6. MACD_Histogram < 0
+
+# 7. Vol_Ratio < 0.70
+
+# 8. RSI > 85
+
+# 9. Close_Range_Position > 0.98
+#    AND RSI > 80
+
+# ====================
+# SCORING RULES
+# =============
+
+# Start score = 0
+
+# TREND:
+
+# +2 if EMA_21_minus_EMA_51 > 0
+# +1 if Price_EMA_21_Ratio > 1
+# +1 if Price_EMA_51_Ratio > 1
+# +2 if ADX > 25
+# +1 if Day_Trend is bullish
+
+# MOMENTUM:
+
+# +2 if MACD_Histogram > 0
+# +1 if MACD_Cross_Flag is bullish
+# +1 if RSI between 50 and 75
+# +1 if Momentum_10 > 0
+# +1 if Aroon_Oscillator > 0
+
+# VOLUME:
+
+# +2 if Vol_Ratio > 1.2
+# +1 if CMF > 0
+# +1 if OBV_pct_change_3 > 0
+# +1 if MFI between 50 and 80
+
+# MODEL CONFIRMATION:
+
+# +3 if MLModel_signal is true
+# +3 if TradeLLM_signal is true
+
+# ====================
+# APPROVAL RULES
+# ==============
+
+# APPROVE if:
+
+# (score >= 8)
+# AND
+# (
+# MLModel_signal is true
+# OR
+# TradeLLM_signal is true
+# OR
+# strategy_votes >= 2
+# )
+
+# Otherwise reject.
+
+# ====================
+# POSITION SIZING
+# ===============
+
+# If approved:
+
+# score >= 14:
+# max_position_pct = 0.02
+
+# score between 11 and 13:
+# max_position_pct = 0.015
+
+# score between 8 and 10:
+# max_position_pct = 0.01
+
+# If rejected:
+# max_position_pct = 0
+
+# ====================
+# OUTPUT FORMAT
+# =============
+
+# {
+# "approved": true,
+# "reason": "short concise reason",
+# "max_position_pct": 0.02
+# }
+
+# The reason must be a single sentence summarizing the strongest approval or rejection factor.
+# """
+
+
+RISK_SYSTEM_PROMPT = """You are a JSON-only risk assessment API for Indian NSE equities.
+
+Output ONLY a single valid JSON object. No markdown. No text outside JSON.
+Your job: evaluate whether an existing BUY signal is strong enough to risk capital.
 
 ====================
-HARD REJECTION RULES
+HARD REJECTION RULES (immediate reject, no scoring)
 ====================
 
-Reject immediately if ANY of the following are true:
+Reject if ANY of the following:
 
-1. strategy_votes < 2
+1. avg_confidence < 0.65
+
+2. ATR_pct > 0.05
+   (extreme intraday volatility — position sizing breaks down)
+
+3. Vol_Ratio < 0.50
+   (near-zero volume — no real interest, likely data artifact)
+
+4. RSI > 85
+   (severely overbought — chasing extended move)
+
+5. strategy_votes < 1
    AND MLModel_signal is false
    AND TradeLLM_signal is false
-
-2. avg_confidence < 0.65
-
-3. ATR_pct > 0.04
-
-4. ADX < 15
-
-5. EMA_21_minus_EMA_51 < 0
-
-6. MACD_Histogram < 0
-
-7. Vol_Ratio < 0.70
-
-8. RSI > 85
-
-9. Close_Range_Position > 0.98
-   AND RSI > 80
+   (no strategy agrees at all)
 
 ====================
-SCORING RULES
-=============
+SCORING (start at 0, accumulate points)
+====================
 
-Start score = 0
-
-TREND:
-
-+2 if EMA_21_minus_EMA_51 > 0
-+1 if Price_EMA_21_Ratio > 1
-+1 if Price_EMA_51_Ratio > 1
-+2 if ADX > 25
-+1 if Day_Trend is bullish
+TREND ALIGNMENT:
++2  EMA_21_minus_EMA_51 > 0      (short EMA above long EMA — uptrend)
++1  EMA_21_minus_EMA_51 < 0      (downtrend — reduce but don't reject)
++1  Price_EMA_21_Ratio > 1.0     (price above EMA21)
++1  Price_EMA_51_Ratio > 1.0     (price above EMA51)
++2  ADX > 25                     (strong trend)
++1  ADX between 15 and 25        (developing trend — valid for breakouts)
++1  Day_Trend is bullish
 
 MOMENTUM:
++2  MACD_Histogram > 0           (momentum accelerating)
++1  MACD_Histogram < 0 AND RSI < 45
+    (oversold with negative MACD — valid reversal setup for stochastic strategy)
++1  MACD_Cross_Flag is bullish
++2  RSI between 45 and 70        (healthy momentum zone)
++1  RSI between 30 and 45        (oversold bounce — valid for stochastic/reversal)
++1  Momentum_10 > 0
++1  Aroon_Oscillator > 0
++1  Williams_%R > -50            (momentum positive)
 
-+2 if MACD_Histogram > 0
-+1 if MACD_Cross_Flag is bullish
-+1 if RSI between 50 and 75
-+1 if Momentum_10 > 0
-+1 if Aroon_Oscillator > 0
+VOLUME / MONEY FLOW:
++2  Vol_Ratio > 1.5              (strong volume surge — high conviction)
++1  Vol_Ratio between 1.0 and 1.5 (moderate volume)
++1  CMF > 0                      (money flowing in)
++1  OBV_pct_change_3 > 0        (OBV rising)
++1  MFI between 40 and 80       (money flow healthy)
 
-VOLUME:
+VOLATILITY / STRUCTURE:
++1  BB_WIDTH narrowing           (squeeze — breakout imminent)
++1  Close_Range_Position > 0.6  (closed near high — strength)
++1  ATR_pct between 0.01 and 0.03 (healthy volatility, not extreme)
 
-+2 if Vol_Ratio > 1.2
-+1 if CMF > 0
-+1 if OBV_pct_change_3 > 0
-+1 if MFI between 50 and 80
+STRATEGY AGREEMENT:
++2  strategy_votes >= 2         (multiple strategies agree)
++1  strategy_votes == 1         (one strategy agrees)
 
 MODEL CONFIRMATION:
-
-+3 if MLModel_signal is true
-+3 if TradeLLM_signal is true
-
-====================
-APPROVAL RULES
-==============
-
-APPROVE if:
-
-(score >= 8)
-AND
-(
-MLModel_signal is true
-OR
-TradeLLM_signal is true
-OR
-strategy_votes >= 2
-)
-
-Otherwise reject.
++3  MLModel_signal is true
++3  TradeLLM_signal is true
 
 ====================
-POSITION SIZING
-===============
+APPROVAL THRESHOLD
+====================
 
-If approved:
+APPROVE if score >= 7
+AND at least ONE of:
+  - strategy_votes >= 1
+  - MLModel_signal is true
+  - TradeLLM_signal is true
 
-score >= 14:
-max_position_pct = 0.02
+REJECT otherwise.
 
-score between 11 and 13:
-max_position_pct = 0.015
+====================
+POSITION SIZING (only if approved)
+====================
 
-score between 8 and 10:
-max_position_pct = 0.01
+score >= 14 : max_position_pct = 0.025
+score 11-13 : max_position_pct = 0.020
+score  8-10 : max_position_pct = 0.015
+score  7    : max_position_pct = 0.010
 
-If rejected:
-max_position_pct = 0
+If rejected: max_position_pct = 0
 
 ====================
 OUTPUT FORMAT
-=============
+====================
 
-{
-"approved": true,
-"reason": "short concise reason",
-"max_position_pct": 0.02
-}
-
-The reason must be a single sentence summarizing the strongest approval or rejection factor.
+{{"approved": true, "reason": "one sentence — strongest approval factor", "max_position_pct": 0.02}}
 """
-
 
 risk_chain = get_chain(RISK_SYSTEM_PROMPT)
 

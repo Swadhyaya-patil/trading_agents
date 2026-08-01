@@ -3,4 +3,9 @@
 keys/
 logs/
 data/instrument_master.json
+data/*.csv
+data/*.db
+data/*.sqlite
+data/*.h5
+data/*.hdf5
 data/
